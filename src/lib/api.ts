@@ -969,9 +969,14 @@ export async function createStudentRegistration(data: {
     college_id: data.collegeId,
     branch: data.branch,
     year: data.year,
-    whatsapp_number: data.whatsapp,
-    email: data.email ?? user.email ?? null,
     role: "STUDENT",
+  });
+
+  // Upsert secrets
+  await db.from("profile_secrets").upsert({
+    profile_id: user.id,
+    email: data.email ?? user.email ?? null,
+    whatsapp_number: data.whatsapp,
   });
 
   // Upsert xpass (idempotent — preserve existing qr_token)
@@ -1032,16 +1037,18 @@ export async function adminAwardXp(params: {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not authenticated");
 
+  // Generate idempotency key for admin action
+  const idempotencyKey = "admin-" + crypto.randomUUID();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (db as any).rpc("fn_award_xp", {
+  await (db as any).rpc("fn_admin_award_xp", {
     p_profile_id: params.profileId,
     p_event_id: params.eventId ?? null,
     p_points: params.points,
     p_reason: params.reason,
     p_type: params.points >= 0 ? "MANUAL_ADJUSTMENT" : "PENALTY",
     p_awarded_by: user.id,
-    p_idempotency_key: null, // Admin manual adjustments are not idempotent by design
-    p_metadata: { admin_note: params.reason },
+    p_idempotency_key: idempotencyKey,
   });
 }
 

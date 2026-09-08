@@ -80,6 +80,21 @@ ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS campus_id      UUID REFERENCES campuses(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS is_active      BOOLEAN NOT NULL DEFAULT true;
 
+-- NEW TABLE: profile_secrets
+CREATE TABLE IF NOT EXISTS profile_secrets (
+  profile_id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  email TEXT,
+  whatsapp_number TEXT
+);
+
+-- Backfill secrets
+INSERT INTO profile_secrets (profile_id, email, whatsapp_number)
+SELECT id, email, whatsapp_number FROM profiles
+ON CONFLICT DO NOTHING;
+
+-- Optional: we can nullify email/whatsapp in profiles later, but we will protect the rows via RLS view instead or just leave them and use column-level security. Actually, let's just use RLS for profile_secrets and remove the columns from public exposure.
+
+
 -- Backfill campus_id for existing profiles
 UPDATE profiles
 SET campus_id = (SELECT id FROM campuses WHERE code = 'KIET-I' LIMIT 1)
@@ -229,6 +244,10 @@ CREATE INDEX IF NOT EXISTS idx_squads_campus        ON squads (campus_id);
 CREATE INDEX IF NOT EXISTS idx_point_tx_profile     ON point_transactions (profile_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_point_tx_event       ON point_transactions (event_id);
 CREATE INDEX IF NOT EXISTS idx_check_ins_event      ON check_ins (event_id, checked_in_at DESC);
+-- ADDED BY AUDIT: Unique constraints for concurrency
+ALTER TABLE check_ins ADD CONSTRAINT uq_checkins_event_profile UNIQUE(event_id, profile_id);
+ALTER TABLE event_registrations ADD CONSTRAINT uq_event_reg_event_profile UNIQUE(event_id, profile_id);
+ALTER TABLE squad_members ADD CONSTRAINT uq_squad_members_profile UNIQUE(profile_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor     ON audit_logs (actor_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_entity    ON audit_logs (entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_reward_redemptions   ON reward_redemptions (reward_id, profile_id);
@@ -294,13 +313,20 @@ CREATE OR REPLACE FUNCTION fn_register_for_event(
 ) RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  -- AUDIT FIX: Verify caller identity
+  _uid UUID := auth.uid();
+
   v_event         RECORD;
   v_reg_count     INTEGER;
   v_already       BOOLEAN;
   v_idempotency   TEXT;
 BEGIN
+  IF _uid IS NULL OR _uid != p_profile_id THEN
+    RETURN 'unauthorized';
+  END IF;
+
   -- Lock and read event
   SELECT status, capacity, registration_xp
   INTO v_event
@@ -369,8 +395,11 @@ CREATE OR REPLACE FUNCTION fn_checkin_and_award(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  _uid UUID := auth.uid();
+  _role TEXT;
+
   v_xpass        RECORD;
   v_event        RECORD;
   v_profile      RECORD;
@@ -379,6 +408,14 @@ DECLARE
   v_idempotency  TEXT;
   v_pts          INTEGER;
 BEGIN
+  IF _uid IS NULL OR _uid != p_operator_id THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+  SELECT role INTO _role FROM profiles WHERE id = _uid;
+  IF _role NOT IN ('VOLUNTEER', 'EVENT_COORDINATOR', 'ADMIN', 'SUPER_ADMIN') THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
   -- Resolve QR token → xpass → profile
   SELECT xp.profile_id, p.full_name
   INTO v_xpass
@@ -462,13 +499,19 @@ CREATE OR REPLACE FUNCTION fn_redeem_reward(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  _uid UUID := auth.uid();
+
   v_reward      RECORD;
   v_already     BOOLEAN;
   v_idempotency TEXT;
   v_pts         INTEGER;
 BEGIN
+  IF _uid IS NULL OR _uid != p_profile_id THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
   -- Resolve reward
   SELECT id, name, xp_value, is_active,
          valid_from, valid_until,
@@ -551,13 +594,24 @@ CREATE OR REPLACE FUNCTION fn_complete_event(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  _uid UUID := auth.uid();
+  _role TEXT;
+
   v_event       RECORD;
   v_checked_in  BOOLEAN;
   v_idempotency TEXT;
   v_pts         INTEGER;
 BEGIN
+  IF _uid IS NULL OR _uid != p_operator_id THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+  SELECT role INTO _role FROM profiles WHERE id = _uid;
+  IF _role NOT IN ('VOLUNTEER', 'EVENT_COORDINATOR', 'ADMIN', 'SUPER_ADMIN') THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
   SELECT completion_xp, name INTO v_event FROM events WHERE id = p_event_id;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('status', 'event_not_found');
@@ -726,12 +780,18 @@ CREATE OR REPLACE FUNCTION fn_create_squad(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  _uid UUID := auth.uid();
+
   v_already_in BOOLEAN;
   v_squad_code TEXT;
   v_squad_id   UUID;
 BEGIN
+  IF _uid IS NULL OR _uid != p_captain_id THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
   -- Check if already in a squad
   SELECT EXISTS (
     SELECT 1 FROM squad_members sm
@@ -781,12 +841,18 @@ CREATE OR REPLACE FUNCTION fn_join_squad(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  _uid UUID := auth.uid();
+
   v_squad      RECORD;
   v_already_in BOOLEAN;
   v_count      INTEGER;
 BEGIN
+  IF _uid IS NULL OR _uid != p_profile_id THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
   SELECT id, squad_name, is_active INTO v_squad
   FROM squads WHERE squad_code = upper(p_squad_code)
   FOR UPDATE;
@@ -835,11 +901,17 @@ CREATE OR REPLACE FUNCTION fn_leave_squad(p_profile_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $
 DECLARE
+  _uid UUID := auth.uid();
+
   v_squad   RECORD;
   v_new_cap UUID;
 BEGIN
+  IF _uid IS NULL OR _uid != p_profile_id THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
   SELECT s.id, s.captain_id INTO v_squad
   FROM squad_members sm
   JOIN squads s ON s.id = sm.squad_id
@@ -967,7 +1039,7 @@ CREATE POLICY "Public profiles are viewable by everyone." ON profiles FOR SELECT
 -- (RPC calls from client require this)
 -- ============================================================
 
-GRANT EXECUTE ON FUNCTION fn_award_xp TO authenticated;
+-- GRANT EXECUTE ON FUNCTION fn_award_xp TO authenticated; -- REMOVED BY AUDIT (Private internal function)
 GRANT EXECUTE ON FUNCTION fn_register_for_event TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_checkin_and_award TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_redeem_reward TO authenticated;
@@ -979,3 +1051,102 @@ GRANT EXECUTE ON FUNCTION fn_create_squad TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_join_squad TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_leave_squad TO authenticated;
 GRANT EXECUTE ON FUNCTION fn_award_registration_xp TO authenticated;
+
+
+-- ============================================================
+-- DATABASE FUNCTION: fn_admin_award_xp (ADDED BY AUDIT)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION fn_admin_award_xp(
+  p_profile_id      UUID,
+  p_event_id        UUID,
+  p_points          INTEGER,
+  p_reason          TEXT,
+  p_type            TEXT,
+  p_awarded_by      UUID,
+  p_idempotency_key TEXT DEFAULT NULL
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  _uid UUID := auth.uid();
+  _role TEXT;
+  v_pts INTEGER;
+BEGIN
+  IF _uid IS NULL OR _uid != p_awarded_by THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+  SELECT role INTO _role FROM profiles WHERE id = _uid;
+  IF _role NOT IN ('ADMIN', 'SUPER_ADMIN') THEN
+    RETURN jsonb_build_object('status', 'unauthorized');
+  END IF;
+
+  v_pts := fn_award_xp(
+    p_profile_id, p_event_id, p_points, p_reason, p_type,
+    p_awarded_by, p_idempotency_key, jsonb_build_object('admin_note', p_reason)
+  );
+
+  RETURN jsonb_build_object('status', 'ok', 'points_awarded', v_pts);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION fn_admin_award_xp TO authenticated;
+
+
+-- ============================================================
+-- AUDIT RLS FIXES
+-- ============================================================
+
+-- profiles: only self can update
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+CREATE POLICY "Users can update own profile" ON profiles
+  FOR UPDATE USING (auth.uid() = id);
+
+-- events: only admin/coordinator can write
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Events are viewable by everyone" ON events;
+CREATE POLICY "Events are viewable by everyone" ON events FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage events" ON events;
+CREATE POLICY "Admins can manage events" ON events
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN', 'EVENT_COORDINATOR'))
+  );
+
+-- rewards: only admin can write
+DROP POLICY IF EXISTS "Admins can manage rewards" ON rewards;
+CREATE POLICY "Admins can manage rewards" ON rewards
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+  );
+
+-- xpasses: self update/insert
+ALTER TABLE xpasses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can insert own xpass" ON xpasses;
+CREATE POLICY "Users can insert own xpass" ON xpasses FOR INSERT WITH CHECK (auth.uid() = profile_id);
+DROP POLICY IF EXISTS "Users can update own xpass" ON xpasses;
+CREATE POLICY "Users can update own xpass" ON xpasses FOR UPDATE USING (auth.uid() = profile_id);
+
+-- profile_secrets
+ALTER TABLE profile_secrets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can read own secrets" ON profile_secrets;
+CREATE POLICY "Users can read own secrets" ON profile_secrets FOR SELECT USING (auth.uid() = profile_id);
+DROP POLICY IF EXISTS "Users can update own secrets" ON profile_secrets;
+CREATE POLICY "Users can update own secrets" ON profile_secrets FOR ALL USING (auth.uid() = profile_id);
+DROP POLICY IF EXISTS "Admins can read all secrets" ON profile_secrets;
+CREATE POLICY "Admins can read all secrets" ON profile_secrets FOR SELECT USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+);
+
+-- squads: stop arbitrary inserts
+ALTER TABLE squads ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admins can insert squads" ON squads;
+CREATE POLICY "Admins can insert squads" ON squads FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+); -- (Note: users create squads via SECURITY DEFINER fn_create_squad, so client doesn't need INSERT)
+
+ALTER TABLE squad_members ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admins can insert squad members" ON squad_members;
+CREATE POLICY "Admins can insert squad members" ON squad_members FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('ADMIN', 'SUPER_ADMIN'))
+); -- (Note: users join via SECURITY DEFINER fn_join_squad, so client doesn't need INSERT)
