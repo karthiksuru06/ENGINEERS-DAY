@@ -99,7 +99,7 @@ export default function EventDetailPage({
                 </p>
                 <div className="mt-8 grid gap-4 border-y border-border py-5 sm:grid-cols-4">
                   <Meta label="Date" value={shortDate(event.date)} />
-                  <Meta label="Time" value={event.time} />
+                  <Meta label="Time" value={event.startTime} />
                   <Meta label="Venue" value={event.venue} />
                   <Meta label="Capacity" value={`${event.registered} / ${event.capacity}`} />
                 </div>
@@ -107,7 +107,7 @@ export default function EventDetailPage({
                   <div>
                     <span className="mono text-[10px] uppercase tracking-wider text-muted-foreground">Reward</span>
                     <div className="mt-1 font-display text-3xl font-semibold text-primary">
-                      +{event.points} XP
+                      +{event.registrationXp} XP
                     </div>
                   </div>
                   <button

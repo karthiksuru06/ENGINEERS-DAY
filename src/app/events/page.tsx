@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/client";
 const orange = "#ff7629";
 
 function EventCard({ event }: { event: Event }) {
-  const accent = event.accent || orange;
+  const accent = orange;
   return (
     <Link
       href={`/events/${event.id}`}
@@ -44,7 +44,7 @@ function EventCard({ event }: { event: Event }) {
       <div className="mt-6 grid grid-cols-2 gap-y-3 border-t border-border pt-4">
         <div>
           <div className="mono text-[9px] uppercase text-muted-foreground">When</div>
-          <div className="mt-1 text-xs">{shortDate(event.date)} / {event.time}</div>
+          <div className="mt-1 text-xs">{shortDate(event.date)} / {event.startTime}</div>
         </div>
         <div>
           <div className="mono text-[9px] uppercase text-muted-foreground">Venue</div>
@@ -56,7 +56,7 @@ function EventCard({ event }: { event: Event }) {
         </div>
         <div>
           <div className="mono text-[9px] uppercase text-muted-foreground">Reward</div>
-          <div className="mt-1 text-xs font-semibold text-primary">+{event.points} XP</div>
+          <div className="mt-1 text-xs font-semibold text-primary">+{event.registrationXp} XP</div>
         </div>
       </div>
       <div className="mt-5 flex items-center justify-between text-sm font-semibold">

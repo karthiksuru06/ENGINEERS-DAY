@@ -58,11 +58,11 @@ export default function AdminPage() {
             {/* KPI tiles */}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {([
-                ["Registered students", data.registeredStudents, Users],
+                ["Registered students", data.totalStudents, Users],
                 ["Checked in", data.checkedIn, CheckCircle2],
                 ["Active events", data.activeEvents, Radio],
                 ["Active squads", data.activeSquads, Users],
-                ["Total points", data.totalPoints, Zap],
+                ["Total XP", data.totalXpDistributed, Zap],
               ] as const).map(([label, value, Icon], index) => (
                 <div key={String(label)} className="rounded-xl border border-card-border bg-card p-5">
                   <div

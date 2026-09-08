@@ -28,13 +28,13 @@ function EventRow({ event }: { event: Event }) {
         <p className="truncate text-sm font-semibold">{event.name}</p>
         <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
           <Clock3 size={12} />
-          {event.time}
+          {event.startTime}
           <span className="text-border">/</span>
           <MapPin size={12} />
           {event.venue}
         </p>
       </div>
-      <span className="hidden mono text-xs text-primary sm:block">+{event.points} XP</span>
+      <span className="hidden mono text-xs text-primary sm:block">+{event.registrationXp} XP</span>
       <ChevronRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1" />
     </Link>
   );
@@ -97,9 +97,9 @@ export default function DashboardPage() {
             {/* Stat cards */}
             <div className="mt-8 grid gap-4 md:grid-cols-4">
               <StatCard label="Total points" value={formatNumber(summary.points)} detail={`+${formatNumber(summary.pointsToNextRank)} to next rank`} icon={<Zap size={17} />} accent="orange" />
-              <StatCard label="Individual rank" value={`#${summary.leaderboardPosition}`} detail="Across all builders" icon={<Trophy size={17} />} accent="cyan" />
+              <StatCard label="Individual rank" value={`#${summary.rank}`} detail="Across all builders" icon={<Trophy size={17} />} accent="cyan" />
               <StatCard label="Events registered" value={String(summary.eventsRegistered).padStart(2, "0")} detail="Your festival route" icon={<CalendarDays size={17} />} accent="violet" />
-              <StatCard label="Squad position" value={`#${summary.squadRank}`} detail={summary.squadName} icon={<Users size={17} />} accent="yellow" />
+              <StatCard label="Squad position" value={summary.squad ? `#${summary.squad.rank || "—"}` : "—"} detail={summary.squad?.name ?? "No squad"} icon={<Users size={17} />} accent="yellow" />
             </div>
 
             {/* Events + activity */}
@@ -137,7 +137,7 @@ export default function DashboardPage() {
                   <div className="mt-5 space-y-4">
                     {activity.slice(0, 5).map((item) => (
                       <div key={item.id} className="flex items-start gap-3">
-                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.accent || orange }} />
+                        <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm">
                             <span className="font-semibold">{item.action}</span>{" "}
@@ -160,7 +160,7 @@ export default function DashboardPage() {
               <div className="rounded-xl border border-primary/30 bg-primary/[.07] p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <Pill tone="orange">Squad / {summary.squadName}</Pill>
+                    <Pill tone="orange">Squad / {summary.squad?.name ?? "No squad"}</Pill>
                     <h2 className="mt-4 font-display text-2xl font-semibold">The board is moving.</h2>
                     <p className="mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
                       You are <span className="font-semibold text-foreground">{summary.pointsToNextRank} points</span> away from

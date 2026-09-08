@@ -1,32 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Brand } from "@/components/brand";
 import { Pill } from "@/components/pill";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { getLeaderboard, type LeaderboardData } from "@/lib/api";
+import { getIndividualLeaderboard, type LeaderboardData } from "@/lib/api";
 import { formatNumber, initials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 const orange = "#ff7629";
 
+const IDENTITY_EMOJI: Record<string, string> = {
+  Builder: "🔨",
+  Gamer: "🎮",
+  Creator: "🎨",
+  Founder: "🚀",
+  Speaker: "🎤",
+  Explorer: "🔭",
+};
+
 export default function LiveDisplayPage() {
   const [data, setData] = useState<LeaderboardData | null>(null);
   const [countdown, setCountdown] = useState(10);
 
-  useEffect(() => {
-    async function fetchData() {
-      const d = await getLeaderboard("individual");
-      setData(d);
-      setCountdown(10);
-    }
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+  const fetchData = useCallback(async () => {
+    const d = await getIndividualLeaderboard({ limit: 10 });
+    setData(d);
+    setCountdown(10);
   }, []);
 
   useEffect(() => {
-    const tick = setInterval(() => setCountdown((c) => (c > 0 ? c - 1 : 10)), 1000);
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  useEffect(() => {
+    const tick = setInterval(
+      () => setCountdown((c) => (c > 0 ? c - 1 : 10)),
+      1000
+    );
     return () => clearInterval(tick);
   }, []);
 
@@ -49,14 +62,15 @@ export default function LiveDisplayPage() {
         <div className="mt-16 grid gap-12 lg:grid-cols-[.8fr_1.2fr]">
           {/* Left: hero text */}
           <div>
-            <Pill tone="orange">Engineer&apos;s Day 2026</Pill>
+            <Pill tone="orange">Engineers Day 2026 — XpoX</Pill>
             <h1 className="mt-7 font-display text-6xl font-semibold leading-[.88] tracking-[-.06em] md:text-8xl">
               Who&apos;s
               <br />
               <span className="text-primary">moving?</span>
             </h1>
             <p className="mt-8 max-w-sm text-lg leading-relaxed text-muted-foreground">
-              Every check-in is a signal. Every point is momentum. This is the board, live from campus.
+              Every check-in is a signal. Every point is momentum. This is the
+              board, live from campus.
             </p>
             <div className="mt-14 border-l-2 border-primary pl-5">
               <div className="mono text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -66,6 +80,32 @@ export default function LiveDisplayPage() {
                 00:{String(countdown).padStart(2, "0")}
               </div>
             </div>
+
+            {/* Top 3 podium */}
+            {data && data.entries.length >= 3 && (
+              <div className="mt-10 flex items-end gap-3">
+                {[1, 0, 2].map((i) => {
+                  const entry = data.entries[i];
+                  if (!entry) return null;
+                  const heights = ["h-20", "h-28", "h-16"];
+                  return (
+                    <div key={entry.profileId} className="flex-1 text-center">
+                      <div className="mb-2 font-semibold text-xs truncate">
+                        {entry.name.split(" ")[0]}
+                      </div>
+                      <div
+                        className={cn(
+                          "flex items-center justify-center rounded-t-lg bg-primary/15 font-display text-2xl font-bold text-primary",
+                          heights[i === 0 ? 1 : i === 1 ? 0 : 2]
+                        )}
+                      >
+                        #{entry.rank}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Right: leaderboard table */}
@@ -77,45 +117,58 @@ export default function LiveDisplayPage() {
                 ))}
               </div>
             ) : (
-              data.entries.slice(0, 8).map((entry, index) => (
-                <div
-                  key={`${entry.name}-${index}`}
-                  className={cn(
-                    "grid grid-cols-[64px_1fr_120px] items-center gap-4 border-b border-border/70 px-4 py-5 last:border-0 md:grid-cols-[80px_1fr_140px] md:px-6",
-                    index === 0 && "bg-primary/[.07]"
-                  )}
-                >
-                  <span
+              data.entries.slice(0, 10).map((entry, index) => {
+                const emoji =
+                  entry.identityTags?.[0]
+                    ? (IDENTITY_EMOJI[entry.identityTags[0]] ?? null)
+                    : null;
+                return (
+                  <div
+                    key={entry.profileId}
                     className={cn(
-                      "font-display text-3xl font-semibold",
-                      index < 3 ? "text-primary" : "text-muted-foreground"
+                      "grid grid-cols-[64px_1fr_120px] items-center gap-4 border-b border-border/70 px-4 py-5 last:border-0 md:grid-cols-[80px_1fr_140px] md:px-6",
+                      index === 0 && "bg-primary/[.07]"
                     )}
                   >
-                    {String(entry.rank).padStart(2, "0")}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-11 w-11 items-center justify-center rounded-full font-display font-bold"
-                      style={{
-                        backgroundColor: `${entry.accent || orange}22`,
-                        color: entry.accent || orange,
-                      }}
+                    <span
+                      className={cn(
+                        "font-display text-3xl font-semibold",
+                        index < 3 ? "text-primary" : "text-muted-foreground"
+                      )}
                     >
-                      {initials(entry.name)}
+                      {String(entry.rank).padStart(2, "0")}
+                    </span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full font-display font-bold"
+                        style={{
+                          backgroundColor: `${orange}22`,
+                          color: orange,
+                        }}
+                      >
+                        {emoji ?? initials(entry.name)}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-display text-lg font-semibold">
+                          {entry.name}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {entry.branch}
+                          {entry.year ? ` · Y${entry.year}` : ""}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-display text-lg font-semibold">{entry.name}</div>
-                      <div className="text-xs text-muted-foreground">{entry.subtitle}</div>
+                    <div className="text-right">
+                      <div className="font-display text-2xl font-semibold">
+                        {formatNumber(entry.points)}
+                      </div>
+                      <div className="mono text-[9px] uppercase tracking-wider text-primary">
+                        XP
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-display text-2xl font-semibold">
-                      {formatNumber(entry.points)}
-                    </div>
-                    <div className="mono text-[9px] uppercase tracking-wider text-primary">points</div>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

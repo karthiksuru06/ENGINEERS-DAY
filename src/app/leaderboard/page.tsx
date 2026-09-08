@@ -1,31 +1,179 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Trophy, Users, Zap, Crown, ArrowUp } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { SectionHeading, StateCard } from "@/components/ui-primitives";
-import { Pill } from "@/components/pill";
-import { getLeaderboard, type LeaderboardData } from "@/lib/api";
-import { formatNumber, initials } from "@/lib/utils";
-import { cn } from "@/lib/utils";
+import { StateCard } from "@/components/ui-primitives";
+import {
+  getIndividualLeaderboard,
+  getSquadLeaderboard,
+  type LeaderboardData,
+  type SquadLeaderboardEntry,
+  formatNumber,
+} from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 
-const orange = "#ff7629";
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const IDENTITY_EMOJI: Record<string, string> = {
+  Builder: "🔨",
+  Gamer: "🎮",
+  Creator: "🎨",
+  Founder: "🚀",
+  Speaker: "🎤",
+  Explorer: "🔭",
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function RankBadge({ rank }: { rank: number }) {
+  if (rank === 1)
+    return (
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-400/15 text-lg">
+        🥇
+      </div>
+    );
+  if (rank === 2)
+    return (
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-400/15 text-lg">
+        🥈
+      </div>
+    );
+  if (rank === 3)
+    return (
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-600/15 text-lg">
+        🥉
+      </div>
+    );
+  return (
+    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted font-display text-sm font-semibold text-muted-foreground">
+      {rank}
+    </div>
+  );
+}
+
+function IndividualRow({
+  entry,
+  isMe,
+  index,
+}: {
+  entry: LeaderboardData["entries"][number];
+  isMe: boolean;
+  index: number;
+}) {
+  const emoji =
+    entry.identityTags?.[0] ? (IDENTITY_EMOJI[entry.identityTags[0]] ?? "⚡") : null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className={`flex items-center gap-4 rounded-xl border px-4 py-3.5 transition-colors ${
+        isMe
+          ? "border-primary/40 bg-primary/8 shadow-[0_0_0_1px_hsl(27_100%_57%/.2)]"
+          : entry.rank <= 3
+          ? "border-card-border bg-card"
+          : "border-card-border bg-card/60"
+      }`}
+      data-testid={isMe ? "row-leaderboard-self" : undefined}
+    >
+      <RankBadge rank={entry.rank} />
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {emoji && <span className="text-sm">{emoji}</span>}
+          <span className={`truncate font-semibold text-sm ${isMe ? "text-primary" : ""}`}>
+            {entry.name}
+          </span>
+          {isMe && (
+            <span className="mono flex-shrink-0 rounded-full bg-primary/12 px-2 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+              You
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          {entry.branch}
+          {entry.year ? ` · Year ${entry.year}` : ""}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5">
+        <Zap size={13} className="text-primary flex-shrink-0" />
+        <span className="font-display text-lg font-semibold">
+          {formatNumber(entry.points)}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+function SquadRow({
+  entry,
+  index,
+}: {
+  entry: SquadLeaderboardEntry;
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.03 }}
+      className="flex items-center gap-4 rounded-xl border border-card-border bg-card px-4 py-3.5"
+    >
+      <RankBadge rank={entry.rank} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <Crown size={13} className="flex-shrink-0 text-yellow-400" />
+          <span className="truncate font-semibold text-sm">
+            {entry.squadName}
+          </span>
+        </div>
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          {entry.memberCount} member{entry.memberCount !== 1 ? "s" : ""}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <Zap size={13} className="text-primary flex-shrink-0" />
+        <span className="font-display text-lg font-semibold">
+          {formatNumber(entry.points)}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
-  const [scope, setScope] = useState<"individual" | "squad">("individual");
-  const [data, setData] = useState<LeaderboardData | null>(null);
+  const [tab, setTab] = useState<"individual" | "squad">("individual");
+  const [individual, setIndividual] = useState<LeaderboardData | null>(null);
+  const [squads, setSquads] = useState<SquadLeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
 
+  const loadLeaderboard = useCallback(async () => {
+    const [ind, sq] = await Promise.all([
+      getIndividualLeaderboard({ limit: 20 }),
+      getSquadLeaderboard({ limit: 20 }),
+    ]);
+    setIndividual(ind);
+    setSquads(sq);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
-    async function load() {
+    async function init() {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
+        setMyProfileId(user.id);
         const { data: profile } = await supabase
           .from("profiles")
           .select("full_name, role")
@@ -34,154 +182,129 @@ export default function LeaderboardPage() {
         setUserName(profile?.full_name ?? "");
         setUserRole(profile?.role ?? "STUDENT");
       }
-    }
-    load();
-  }, []);
+      await loadLeaderboard();
 
-  useEffect(() => {
-    async function fetch() {
-      try {
-        setLoading(true);
-        setError(false);
-        const d = await getLeaderboard(scope);
-        setData(d);
-      } catch {
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
+      // Realtime subscription on xpasses for live updates
+      const channel = supabase
+        .channel("leaderboard-realtime")
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "xpasses" },
+          () => {
+            loadLeaderboard();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-    fetch();
-  }, [scope]);
+    init();
+  }, [loadLeaderboard]);
+
+  const myRank = individual?.myRank ?? 0;
+  const pointsToNext = individual?.pointsToNextRank ?? 0;
 
   return (
     <AppShell userName={userName} userRole={userRole}>
       <div className="animate-rise">
-        <SectionHeading
-          eyebrow="Points system / live"
-          title="The board."
-          action={
-            <div className="flex rounded-md border border-border bg-card p-1">
-              {(["individual", "squad"] as const).map((item) => (
-                <button
-                  key={item}
-                  onClick={() => setScope(item)}
-                  className={cn(
-                    "rounded px-3 py-1.5 text-xs font-semibold capitalize",
-                    scope === item ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                  )}
-                  data-testid={`button-scope-${item}`}
-                >
-                  {item}
-                </button>
-              ))}
+        <div className="mb-8 flex items-end justify-between">
+          <div>
+            <p className="mono text-[10px] uppercase tracking-[.24em] text-primary">
+              Live leaderboard
+            </p>
+            <h1 className="mt-2 font-display text-3xl font-semibold">
+              The board.
+            </h1>
+          </div>
+          <div className="flex h-8 items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/8 px-3">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="mono text-[10px] text-emerald-300">Live</span>
+          </div>
+        </div>
+
+        {/* My rank banner */}
+        {!loading && myRank > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 flex items-center gap-4 rounded-xl border border-primary/30 bg-primary/8 p-4"
+          >
+            <Trophy size={22} className="flex-shrink-0 text-primary" />
+            <div className="flex-1">
+              <div className="font-semibold text-sm">Your rank: #{myRank}</div>
+              {pointsToNext > 0 && (
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {formatNumber(pointsToNext)} XP to next rank
+                </div>
+              )}
             </div>
-          }
-        />
+            {pointsToNext > 0 && (
+              <div className="flex items-center gap-1 text-xs font-semibold text-primary">
+                <ArrowUp size={14} /> {formatNumber(pointsToNext)} XP
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Tab switcher */}
+        <div className="mb-5 flex gap-1 rounded-xl border border-card-border bg-card p-1">
+          {([
+            { value: "individual", label: "Individual", icon: Trophy },
+            { value: "squad", label: "Squad", icon: Users },
+          ] as const).map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setTab(value)}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-colors ${
+                tab === value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid={`tab-leaderboard-${value}`}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
+        </div>
 
         {loading ? (
           <StateCard kind="loading" />
-        ) : error || !data ? (
-          <StateCard kind="error" onRetry={() => setError(false)} />
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[1fr_.7fr]">
-            {/* Table */}
-            <div className="rounded-xl border border-card-border bg-card p-3 md:p-5">
-              <div className="mb-3 grid grid-cols-[48px_1fr_90px] gap-3 px-3 py-2 mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                <span>Rank</span>
-                <span>Builder</span>
-                <span className="text-right">Points</span>
-              </div>
-              {data.entries.map((entry, index) => (
-                <div
-                  key={`${entry.name}-${index}`}
-                  className={cn(
-                    "grid grid-cols-[48px_1fr_90px] items-center gap-3 rounded-lg px-3 py-4",
-                    entry.rank === data.currentRank && "border border-primary/35 bg-primary/[.07]"
-                  )}
-                  data-testid={`row-leaderboard-${index}`}
-                >
-                  <span
-                    className={cn(
-                      "font-display text-xl font-semibold",
-                      entry.rank <= 3 ? "text-primary" : "text-muted-foreground"
-                    )}
-                  >
-                    {String(entry.rank).padStart(2, "0")}
-                  </span>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                      style={{
-                        backgroundColor: `${entry.accent || orange}22`,
-                        color: entry.accent || orange,
-                      }}
-                    >
-                      {initials(entry.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{entry.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">{entry.subtitle}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="mono text-sm font-semibold">{formatNumber(entry.points)}</div>
-                    <div
-                      className={cn(
-                        "mt-1 inline-flex items-center gap-1 mono text-[9px]",
-                        entry.change >= 0 ? "text-emerald-300" : "text-destructive"
-                      )}
-                    >
-                      {entry.change >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-                      {Math.abs(entry.change)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-4">
-              <div className="rounded-xl border border-primary/30 bg-primary/[.07] p-6">
-                <Pill tone="orange">Your position</Pill>
-                <div className="mt-4 font-display text-6xl font-semibold">#{data.currentRank}</div>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Only{" "}
-                  <span className="font-semibold text-foreground">
-                    {formatNumber(data.pointsToNextRank)} points
-                  </span>{" "}
-                  until your next overtake.
-                </p>
-                <Link
-                  href="/events"
-                  className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary"
-                  data-testid="link-leaderboard-events"
-                >
-                  Find your next points <ArrowRight size={15} />
-                </Link>
-              </div>
-              <div className="rounded-xl border border-card-border bg-card p-6">
-                <p className="mono text-[10px] uppercase tracking-wider text-muted-foreground">
-                  How to climb
-                </p>
-                <div className="mt-5 space-y-4">
-                  {[
-                    ["Check in", "Be in the room when it counts"],
-                    ["Ship work", "Complete a build event"],
-                    ["Bring people", "Grow your squad momentum"],
-                  ].map(([a, b], i) => (
-                    <div key={a} className="flex gap-3">
-                      <span className="mono text-xs text-primary">0{i + 1}</span>
-                      <div>
-                        <div className="text-sm font-semibold">{a}</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{b}</p>
-                      </div>
-                    </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <div className="space-y-2">
+                {tab === "individual" &&
+                  (individual?.entries ?? []).map((entry, i) => (
+                    <IndividualRow
+                      key={entry.profileId}
+                      entry={entry}
+                      isMe={entry.profileId === myProfileId}
+                      index={i}
+                    />
                   ))}
-                </div>
+                {tab === "individual" &&
+                  (individual?.entries ?? []).length === 0 && (
+                    <StateCard kind="empty" />
+                  )}
+                {tab === "squad" &&
+                  squads.map((entry, i) => (
+                    <SquadRow key={entry.squadId} entry={entry} index={i} />
+                  ))}
+                {tab === "squad" && squads.length === 0 && (
+                  <StateCard kind="empty" />
+                )}
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </AnimatePresence>
         )}
       </div>
     </AppShell>

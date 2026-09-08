@@ -23,12 +23,12 @@ function EventRow({ event }: { event: Event }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{event.name}</p>
         <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock3 size={12} />{event.time}
+          <Clock3 size={12} />{event.startTime}
           <span className="text-border">/</span>
           <MapPin size={12} />{event.venue}
         </p>
       </div>
-      <span className="hidden mono text-xs text-primary sm:block">+{event.points} XP</span>
+      <span className="hidden mono text-xs text-primary sm:block">+{event.registrationXp} XP</span>
       <ChevronRight size={16} className="text-muted-foreground transition-transform group-hover:translate-x-1" />
     </Link>
   );
@@ -82,7 +82,7 @@ export default function OperationsPage() {
           <>
             <div className="grid gap-4 md:grid-cols-3">
               <StatCard label="Checked in today" value={formatNumber(data.checkedInToday)} detail="Across all active events" icon={<CheckCircle2 size={17} />} accent="cyan" />
-              <StatCard label="Next scan" value={data.nextScan} detail="Your assigned queue" icon={<ScanLine size={17} />} accent="orange" />
+              <StatCard label="Recent scans" value={String(data.recentScans?.length ?? 0).padStart(2, "0")} detail="This session" icon={<ScanLine size={17} />} accent="orange" />
               <StatCard label="Assigned events" value={String(data.assignedEvents.length).padStart(2, "0")} detail={`Staff: ${data.staffName}`} icon={<CalendarDays size={17} />} accent="violet" />
             </div>
 

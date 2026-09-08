@@ -1,10 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_ROUTES = ["/dashboard", "/xpass", "/events", "/leaderboard"];
+const PROTECTED_ROUTES = ["/dashboard", "/xpass", "/events", "/leaderboard", "/squads"];
 const STAFF_ROUTES = ["/operations", "/scanner"];
 const ADMIN_ROUTES = ["/admin"];
 const AUTH_ROUTES = ["/login", "/register"];
+const PUBLIC_ROUTES = ["/live", "/rewards"];
 
 export async function proxy(request: NextRequest) {
   // If Supabase env vars are not yet configured, pass all requests through.

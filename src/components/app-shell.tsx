@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, CalendarDays, QrCode, Trophy, Gauge, ScanLine, BarChart3, Menu, X, Radio,
+  LayoutDashboard, CalendarDays, QrCode, Trophy, Gauge, ScanLine, BarChart3, Menu, X, Radio, Users, LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Brand } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { createClient } from "@/lib/supabase/client";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/events", label: "Events", icon: CalendarDays },
   { href: "/xpass", label: "My XPass", icon: QrCode },
+  { href: "/squads", label: "Squads", icon: Users },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
 ];
 
@@ -36,7 +38,14 @@ export function AppShell({
   userRole?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   const isStaff =
     userRole === "VOLUNTEER" ||
@@ -144,14 +153,24 @@ export function AppShell({
             )}
           </div>
 
-          <div className="mt-auto rounded-lg border border-sidebar-border bg-sidebar-accent/45 p-3">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_hsl(142_70%_60%/.8)]" />
-              <span className="mono text-[10px] uppercase tracking-wider text-emerald-300">Event network online</span>
+          <div className="mt-auto space-y-3">
+            <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/45 p-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_hsl(142_70%_60%/.8)]" />
+                <span className="mono text-[10px] uppercase tracking-wider text-emerald-300">XpoX network online</span>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                Engineers Day 2026 · Registration open.
+              </p>
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-              Registration is open. Engineer&apos;s Day 2026.
-            </p>
+            <button
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground transition-colors"
+              data-testid="button-logout"
+            >
+              <LogOut size={15} />
+              Sign out
+            </button>
           </div>
         </div>
       </aside>
@@ -177,11 +196,11 @@ export function AppShell({
             <Menu size={20} />
           </button>
           <div className="hidden items-center gap-2 lg:flex">
-            <span className="mono text-[10px] text-muted-foreground">ED26 /</span>
+            <span className="mono text-[10px] text-muted-foreground">XpoX /</span>
             <span className="text-sm capitalize">
               {pathname === "/dashboard"
                 ? "Student dashboard"
-                : pathname.replace("/", "").replace("-", " ")}
+                : pathname.replace(/^\//, "").replace(/-/g, " ")}
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3">
