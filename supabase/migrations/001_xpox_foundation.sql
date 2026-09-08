@@ -76,9 +76,12 @@ ON CONFLICT (label) DO NOTHING;
 -- ============================================================
 
 ALTER TABLE profiles
-  ADD COLUMN IF NOT EXISTS email          TEXT,
   ADD COLUMN IF NOT EXISTS campus_id      UUID REFERENCES campuses(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS is_active      BOOLEAN NOT NULL DEFAULT true;
+
+-- AUDIT FIX: Remove PII from public profiles table
+ALTER TABLE profiles DROP COLUMN IF EXISTS email;
+ALTER TABLE profiles DROP COLUMN IF EXISTS whatsapp_number;
 
 -- NEW TABLE: profile_secrets
 CREATE TABLE IF NOT EXISTS profile_secrets (

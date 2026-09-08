@@ -1161,7 +1161,7 @@ export async function listStudents(params?: {
   let query = (db as any)
     .from("profiles")
     .select(
-      "id, full_name, college_id, branch, year, email, whatsapp_number, campus_id, is_active, created_at, xpasses(total_points, xpass_id, identity_tags)"
+      "id, full_name, college_id, branch, year, campus_id, is_active, created_at, profile_secrets(email, whatsapp_number), xpasses(total_points, xpass_id, identity_tags)"
     )
     .eq("role", "STUDENT")
     .order("created_at", { ascending: false })
