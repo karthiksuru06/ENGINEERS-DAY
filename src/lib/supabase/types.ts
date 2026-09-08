@@ -77,12 +77,16 @@ export interface DbProfile {
   college_id: string | null;
   branch: string | null;
   year: string | null;
-  email: string | null;
-  whatsapp_number: string | null;
   campus_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface DbProfileSecret {
+  profile_id: string;
+  email: string | null;
+  whatsapp_number: string | null;
 }
 
 export interface DbXPass {
