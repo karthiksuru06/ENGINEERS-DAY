@@ -47,6 +47,8 @@ BEGIN
     IF NOT _is_admin THEN
       NEW.role := OLD.role;
       NEW.campus_id := OLD.campus_id;
+      NEW.is_active := OLD.is_active;
+      NEW.college_id := OLD.college_id;
     END IF;
   END IF;
   RETURN NEW;
@@ -74,6 +76,7 @@ BEGIN
     IF NOT _is_admin THEN
       NEW.total_points := OLD.total_points;
       NEW.qr_token := OLD.qr_token;
+      NEW.xpass_id := OLD.xpass_id;
     END IF;
   END IF;
   RETURN NEW;
