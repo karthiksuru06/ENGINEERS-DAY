@@ -9,7 +9,7 @@ export function ThemeToggle() {
   useEffect(() => {
     const stored = window.localStorage.getItem("ed26-theme");
     const next = stored === "light" ? "light" : "dark";
-    setTheme(next);
+    setTimeout(() => setTheme(next), 0);
     document.documentElement.classList.toggle("light", next === "light");
   }, []);
 

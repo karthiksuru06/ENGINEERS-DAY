@@ -56,7 +56,7 @@ export function StateCard({
     return (
       <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center">
         <ShieldCheck className="mx-auto mb-3 text-destructive" size={24} />
-        <p className="font-display font-semibold">We couldn't load this page</p>
+        <p className="font-display font-semibold">We couldn&apos;t load this page</p>
         <p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p>
         {onRetry && (
           <button

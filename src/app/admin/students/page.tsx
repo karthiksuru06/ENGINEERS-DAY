@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Users, Search, Zap, ChevronRight } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Search, Zap, ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { StateCard } from "@/components/ui-primitives";
 import { listStudents, formatNumber } from "@/lib/api";
@@ -16,7 +16,7 @@ export default function AdminStudentsPage() {
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
 
-  async function load(opts?: { search?: string; branch?: string; year?: string }) {
+  const load = useCallback(async (opts?: { search?: string; branch?: string; year?: string }) => {
     setLoading(true);
     try {
       const data = await listStudents({ search: opts?.search, branch: opts?.branch, year: opts?.year, limit: 50 });
@@ -24,7 +24,7 @@ export default function AdminStudentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -38,7 +38,7 @@ export default function AdminStudentsPage() {
       await load();
     }
     init();
-  }, []);
+  }, [load]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

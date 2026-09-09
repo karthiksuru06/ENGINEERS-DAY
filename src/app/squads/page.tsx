@@ -252,7 +252,7 @@ export default function SquadsPage() {
   }
 
   useEffect(() => {
-    load();
+    setTimeout(() => load(), 0);
   }, []);
 
   const handleLeave = async () => {
@@ -464,7 +464,7 @@ export default function SquadsPage() {
                 👥
               </div>
               <h2 className="mt-6 font-display text-2xl font-semibold">
-                You're not in a squad yet.
+                You&apos;re not in a squad yet.
               </h2>
               <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                 Create a squad and invite friends, or join one with a code.

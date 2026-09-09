@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Zap, CheckCircle2, Edit3, X } from "lucide-react";
+import { Plus, Zap, CheckCircle2, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { StateCard } from "@/components/ui-primitives";
 import {

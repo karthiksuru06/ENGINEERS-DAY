@@ -30,7 +30,7 @@ export default function LiveDisplayPage() {
   }, []);
 
   useEffect(() => {
-    fetchData();
+    setTimeout(() => fetchData(), 0);
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [fetchData]);

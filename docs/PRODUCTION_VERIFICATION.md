@@ -1,45 +1,37 @@
-# XpoX Production Verification & Vertical Slice Audit
+# XpoX Production Verification
 
 ## Execution Date
 2026-09-09
 
-## Objective
-Test and audit the complete critical vertical slice (Registration → XPass → Event Registration → Scanner → XP → Leaderboard) against the live schema to guarantee end-to-end integration correctness and security isolation.
+## Overall Status
+**NO-GO**
 
-## Audit Findings & Security Vectors
+The application code and SQL migrations have been statically audited and heavily secured against vulnerabilities (including arbitrary XP awards, column tampering, and reward QR extraction). However, the system is fundamentally blocked from reaching a `PRODUCTION READY` state because **Migration 003 has not been successfully applied to the live database (`npwdggrxapdgopjsvdvf`)**, and real-time backend configurations are missing.
 
-### 1. Registration Flow
-- **Audit**: `createStudentRegistration`
-- **Result**: Successfully handles profile and `profile_secrets` upsert.
-- **VULNERABILITY FOUND**: `fn_award_registration_xp` accepted arbitrary XP values from the client and allowed specifying arbitrary user IDs.
-- **PATCHED**: Rewrote `fn_award_registration_xp` to force `auth.uid()` validation and hardcode the internal 50 XP bonus.
+## Live Database Status
+- **Migration 003 applied**: FAIL (Lack of CLI authentication/tokens to connect to remote project)
+- **Security verification**: UNTESTED (Cannot query live DB to confirm trigger/RPC behavior)
+- **RLS verification**: UNTESTED
+- **XP integrity**: UNTESTED
+- **Realtime configuration**: MANUAL ACTION REQUIRED
 
-### 2. XPass Flow
-- **Audit**: `xpasses` table security
-- **VULNERABILITY FOUND**: The `FOR UPDATE` RLS policy allowed users to arbitrarily update any column in their row, including `total_points` and `qr_token`.
-- **PATCHED**: Implemented `tg_protect_xpass_fields` PostgreSQL trigger to forcefully reset `total_points` and `qr_token` to their `OLD` values on update unless the user is an `ADMIN`.
+## Application / Build Status
+- **Build**: PASS (`npm run build` succeeds)
+- **TypeScript**: PASS
+- **Lint**: PASS
+- **Tests**: UNTESTED (No test suite found)
+- **E2E Browser Testing**: UNTESTED (Cannot emulate physical camera/QR scanning or execute live browser flows)
 
-### 3. Profile Tampering
-- **VULNERABILITY FOUND**: Users could use standard `UPDATE` queries against `profiles` to change their `role` to `SUPER_ADMIN` or change their `campus_id`.
-- **PATCHED**: Implemented `tg_protect_profile_fields` PostgreSQL trigger to enforce immutability of `role` and `campus_id` for non-admins.
+## Critical Security Vectors Addressed (Static)
+The following protections are coded in `003_xpox_critical_vertical_slice_patch_003.sql` but require live verification once deployed:
+1. `fn_award_registration_xp` hardcodes the 50 XP bonus internally and blocks spoofing.
+2. `tg_protect_profile_fields` blocks non-admins from updating `role`, `campus_id`, `college_id`, and `is_active`.
+3. `tg_protect_xpass_fields` blocks non-admins from updating `total_points`, `qr_token`, and `xpass_id`.
+4. `vw_public_rewards` excludes `qr_token` from public reads.
+5. `fn_create_squad` forces campus validation based on the invoker's profile.
 
-### 4. Reward Secrets Leakage
-- **VULNERABILITY FOUND**: `rewards.qr_token` was visible in public `SELECT * FROM rewards` queries, exposing all physical QR codes to clients (meaning a student could redeem rewards without scanning the physical QR).
-- **PATCHED**: Created `vw_public_rewards` view that completely omits `qr_token`. Patched Next.js API `listRewards` to query this view for students, and created `getAdminRewards` for the admin dashboard.
-
-### 5. Squad Campus Spoofing
-- **VULNERABILITY FOUND**: `fn_create_squad` blindly accepted `p_campus_id` from the client, allowing a student in Campus A to create a squad in Campus B.
-- **PATCHED**: Updated `fn_create_squad` to resolve the invoking user's true `campus_id` from the database and forcefully override the client's parameter unless invoked by an `ADMIN`.
-
-### 6. Leaderboard & XP Engine
-- **Audit**: `fn_leaderboard_individual`, `fn_leaderboard_squad`, `fn_admin_award_xp`
-- **Result**: Successfully integrated.
-- **PATCHED**: Appended `SET search_path = public` to ensure no search_path manipulation attacks can redirect `RANK()` calculations or table resolutions.
-
-## Conclusion
-
-The database schema and API layer have now survived a hostile penetration audit. The issues identified (direct column mutations via RLS bypass, RPC parameter spoofing, and view leakage) have been completely mitigated in migration `003_xpox_critical_vertical_slice_patch_003.sql`.
-
-The application logic strictly enforces idempotency, prevents race conditions with `FOR UPDATE` locks, and prevents arbitrary updates with `BEFORE UPDATE` triggers.
-
-The platform is **PRODUCTION-READY**.
+## Remaining Manual Actions
+1. **Authenticate Supabase CLI**: Connect the repository to `npwdggrxapdgopjsvdvf` using a valid access token.
+2. **Push Migration**: Run `npx supabase db push` to apply `20260909052000_xpox_critical_vertical_slice_patch_003.sql`.
+3. **Configure Realtime**: Enable Realtime Replication for the `xpasses` table in the Supabase Dashboard.
+4. **Live Verification**: Re-run the security verifications against the live database once the migration is applied.

@@ -5,7 +5,6 @@ const PROTECTED_ROUTES = ["/dashboard", "/xpass", "/events", "/leaderboard", "/s
 const STAFF_ROUTES = ["/operations", "/scanner"];
 const ADMIN_ROUTES = ["/admin"];
 const AUTH_ROUTES = ["/login", "/register"];
-const PUBLIC_ROUTES = ["/live", "/rewards"];
 
 export async function proxy(request: NextRequest) {
   // If Supabase env vars are not yet configured, pass all requests through.

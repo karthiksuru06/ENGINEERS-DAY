@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Activity, CalendarDays, Flame, QrCode, ArrowRight, Trophy, Users, Zap } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { StatCard, StateCard, SectionHeading } from "@/components/ui-primitives";
+import { StatCard, StateCard } from "@/components/ui-primitives";
 import { getDashboardSummary, getActivity, type DashboardSummary, type ActivityItem, type Event } from "@/lib/api";
 import { shortDate, formatNumber } from "@/lib/utils";
 import { Pill } from "@/components/pill";
 import { Clock3, MapPin, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const orange = "#ff7629";
+
 
 function EventRow({ event }: { event: Event }) {
   return (

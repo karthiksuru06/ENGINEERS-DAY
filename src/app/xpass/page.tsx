@@ -312,7 +312,7 @@ export default function XPassPage() {
                 ) : (
                   <div className="mt-3 text-center">
                     <p className="text-sm text-muted-foreground">
-                      You're not in a squad yet.
+                      You&apos;re not in a squad yet.
                     </p>
                     <Link
                       href="/squads"

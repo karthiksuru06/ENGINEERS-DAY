@@ -499,7 +499,7 @@ export default function RegisterPage() {
                   <span className="text-primary">excited?</span>
                 </h2>
                 <p className="mt-3 text-sm text-muted-foreground">
-                  Pick as many as you like. We'll use this to recommend events.
+                  Pick as many as you like. We&apos;ll use this to recommend events.
                 </p>
                 <div className="mt-7 flex flex-wrap gap-2.5">
                   {INTERESTS.map(({ tag, icon }) => (
@@ -559,7 +559,7 @@ export default function RegisterPage() {
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                   Welcome to Engineers Day 2026, {profile.fullName.split(" ")[0]}.
-                  You've earned{" "}
+                  You&apos;ve earned{" "}
                   <span className="font-bold text-primary">50 XP</span> for
                   registering. Your XPass is ready.
                 </p>
