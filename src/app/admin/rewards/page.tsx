@@ -5,7 +5,7 @@ import QRCode from "react-qr-code";
 import { Plus, Gift, Power, PowerOff, Eye, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { StateCard } from "@/components/ui-primitives";
-import { listRewards, createReward, toggleReward, type Reward } from "@/lib/api";
+import { getAdminRewards, createReward, toggleReward, type Reward } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber } from "@/lib/utils";
 
@@ -102,11 +102,11 @@ function QRModal({
           +{formatNumber(reward.xpValue)} XP · Students scan this QR to redeem
         </p>
         <div className="mx-auto w-fit rounded-xl bg-white p-4">
-          <QRCode value={reward.qrToken} size={200} />
+          <QRCode value={reward.qrToken ?? ""} size={200} />
         </div>
-        <p className="mono mt-4 text-[10px] text-muted-foreground">
-          {reward.qrToken}
-        </p>
+        <div className="mt-4 text-center text-xs text-muted-foreground break-all">
+          {reward.qrToken ?? "No QR Token"}
+        </div>
         <div className="mt-3 rounded-lg bg-yellow-400/8 border border-yellow-400/20 px-3 py-2 text-xs text-yellow-300">
           Never expose this QR publicly until the reward window opens.
         </div>
@@ -210,7 +210,7 @@ export default function AdminRewardsPage() {
   const [userRole, setUserRole] = useState("");
 
   async function load() {
-    const data = await listRewards();
+    const data = await getAdminRewards();
     setRewards(data);
     setLoading(false);
   }

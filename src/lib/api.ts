@@ -1064,11 +1064,43 @@ export interface Reward {
   isActive: boolean;
   validFrom: string | null;
   validUntil: string | null;
-  qrToken: string;
+  qrToken?: string;
   createdAt: string;
 }
 
 export async function listRewards(): Promise<Reward[]> {
+  const db = createClient();
+  const { data, error } = await db
+    .from("vw_public_rewards")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return ((data ?? []) as {
+    id: string;
+    name: string;
+    description: string | null;
+    xp_value: number;
+    max_redemptions: number | null;
+    current_redemptions: number;
+    is_active: boolean;
+    valid_from: string | null;
+    valid_until: string | null;
+    created_at: string;
+  }[]).map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    xpValue: r.xp_value,
+    maxRedemptions: r.max_redemptions,
+    currentRedemptions: r.current_redemptions,
+    isActive: r.is_active,
+    validFrom: r.valid_from,
+    validUntil: r.valid_until,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function getAdminRewards(): Promise<Reward[]> {
   const db = createClient();
   const { data, error } = await db
     .from("rewards")
